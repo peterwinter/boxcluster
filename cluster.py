@@ -3,14 +3,15 @@ import numpy as np
 import random
 from collections import abc
 
+
 # box is a list + fitness...
 class Box(list):
     def __init__(self, *args, **kwds):
         list.__init__(self, *args, **kwds)
         self.fitness = None
 
-class BoxList(abc.MutableSequence):
 
+class PseudoList(abc.MutableSequence):
     def __init__(self, boxes):
         self.boxes = boxes
 
@@ -26,19 +27,135 @@ class BoxList(abc.MutableSequence):
     def __len__(self):
         return len(self.boxes)
 
+    def __repr__(self):
+        # print(self.boxes)
+        return 'Boxes: {b}'.format(b=self.boxes)
+
+    # def copy(self):
+    #     return BoxList(boxes=self.boxes.copy())
+
     def insert(self, key, value):
-        self.boxes[key] = value
+        self.boxes.insert(key, value)
 
 
-# potential functions
-# box join
-# box split
-# box iter with front:back indicies
+class BoxList(PseudoList):
+    def __init__(self, boxes):
+        super().__init__(boxes=boxes)
+        self.fitness = None
+
+    def copy(self):
+        return BoxList(boxes=self.boxes.copy())
+
+    def _random_bounded_pareto(self, limit):
+        d = np.inf
+        while d > limit:
+            d = int(np.ceil((np.random.pareto(0.5))))
+        return d
+
+    def _determine_takeover_size(self, limit):
+        takeover_size = 1
+        if limit > 1:
+            takeover_size = self._random_bounded_pareto(limit=limit)
+        return takeover_size
+
+    def right_join(self, box_pos):
+        """
+        take some items from box on right.
+
+        amount of items taken is _random_bounded_pareto()
+
+        None is returned if no box to right.
+        (ie. box_pos at limit)
+        """
+        # join with the one to the right
+        candidate = self.copy()
+        if box_pos == len(self.boxes) - 1:
+            return
+
+        current_edge = candidate[box_pos]
+        upper_bound = candidate[box_pos + 1]
+
+        takeover_limit = (upper_bound - current_edge)
+        takeover_size = self._determine_takeover_size(limit=takeover_limit)
+
+        new_edge = current_edge + takeover_size
+        # if cut_location is the next box, remove current box
+        if new_edge == upper_bound:
+            candidate.pop(box_pos)
+        # if cut location is smaller than next box, move to next spot
+        else:
+            candidate[box_pos] = new_edge
+        return candidate
+
+    def left_join(self, box_pos):
+        """
+        take some items from box on left.
+
+        amount of items taken is _random_bounded_pareto()
+        this moves the index of the box at box_pos - 1.
+
+        None is returned if no box to left.
+        (ie. box_pos = 0)
+        """
+        candidate = self.copy()
+
+        if box_pos == 0:
+            return
+
+        lower_bound = 0  # seems like it should be one?
+        if box_pos > 1:
+            lower_bound = candidate[box_pos - 2]
+        current_edge = candidate[box_pos - 1]
+
+        takeover_limit = current_edge - lower_bound
+        takeover_size = self._determine_takeover_size(limit=takeover_limit)
+
+        new_edge = current_edge - takeover_size
+        if new_edge == lower_bound:
+            candidate.pop(box_pos - 1)
+        else:
+            candidate[box_pos - 1] = new_edge
+        return candidate
+
+    def split(self, box_pos):
+        """ return a split list or None if box_pos doesn't work
+
+        new item gets inserted at box_pos and existing item
+        is shifted right.
+
+        ie. new item inserted left of existing item
+
+        all box_pos are possible
+        limitations, if the box in a given position is too small... no luck
+        """
+        candidate = self.copy()
+        upper = candidate[box_pos]
+        lower = 1
+        if box_pos > 0:
+            lower = candidate[box_pos - 1]
+        r = upper - lower
+        if r <= 1:
+            return
+        cut_location = random.randrange(lower + 1, upper)
+        candidate.insert(box_pos, cut_location)
+        return candidate
+
+    def items(self):
+        yield None
+
+        # for i, box in enumerate(boxes):
+        #     if i == 0:
+        #         begin = 0
+        #     else:
+        #         begin = boxes[i - 1]
+        #     end = box
+        #     box_nodes = matrix[begin:end, begin:end]
 
 
 def bic(unique_points, likelihood, dof):
     return unique_points * np.log(likelihood) + (2 * dof + 1
                                                  ) * np.log(unique_points)
+
 
 # TODO: recursive BoxClustering Algorithm
 def hierarchical_box_clustering(self, branch=None):
@@ -84,7 +201,6 @@ def hierarchical_box_clustering(self, branch=None):
 
 
 class BoxClustering(SortingAlgorithm):
-
     def __init__(self, *args, **kwds):
         SortingAlgorithm.__init__(self, *args, **kwds)
         self.current_matrix = self.orig
@@ -97,12 +213,13 @@ class BoxClustering(SortingAlgorithm):
         self.box_temperature = 0.01
         self._box_t_since_last_move = 0
         # self._box_t_last_productive = 0
-        self._box_evals = 0    # count turns
+        self._box_evals = 0  # count turns
         # self.boxes is a list of the right-boundaries of the boxes
-        self.boxes = [n + 1 for n in range(len(matrix))]
+        self.boxes = BoxList([n + 1 for n in range(len(matrix))])
         # self.boxes = [len(matrix)]
         self.best_boxes = self.boxes[:]
-        self.box_current_fitness = self._evaluate_box_fitness(self.boxes, matrix)
+        self.box_current_fitness = self._evaluate_box_fitness(self.boxes,
+                                                              matrix)
         self.box_best_fitness = self.box_current_fitness
         counter = 0  # why counter?
         while 1:
@@ -146,14 +263,13 @@ class BoxClustering(SortingAlgorithm):
 
     def box_turn(self):
         """
-
         1. propose move
         2. calculate fitness
-        3. calculate probability of accepting move (based on fitness differential)
+        3. calculate probability of accepting move
+           (based on fitness differential)
         4. accept move or don't
         ....
         travel around while always keeping track of best location passed through
-
         self._box_t_since_last_move increments in three postions
         a) box_turn() starts
         b) p is accepted
@@ -168,7 +284,6 @@ class BoxClustering(SortingAlgorithm):
         candidate = self._propose_box_move()
         if not candidate:
             return
-
         # reset parameters
         cur_fit = self.box_current_fitness
         fitness = self._evaluate_box_fitness(candidate, matrix=self.sub_graph)
@@ -208,69 +323,18 @@ class BoxClustering(SortingAlgorithm):
 
         """
         box_pos = random.randrange(len(self.boxes))
-        # XXX debug
-        # candidate_box = self.boxes[box_pos]
-        # old_candidate = self.boxes[:]
-        candidate = list(self.boxes)
+        candidate = self.boxes.copy()  #list(self.boxes)
+        # print(box_pos)
+        # print(candidate)
         # split
         if random.random() < 0.5:
-            if box_pos == 0:
-                if candidate[box_pos] == 1:
-                    return
-                cut_location = random.randrange(1, candidate[box_pos])
-            else:
-                if (candidate[box_pos] - candidate[box_pos - 1]) == 1:
-                    return
-                cut_location = random.randrange(candidate[box_pos - 1],
-                                                candidate[box_pos])
-            candidate.insert(box_pos, cut_location)
-
+            candidate = candidate.split(box_pos)
         # join
         else:
             if random.random() < 0.5:
                 # join with the one to the left
-                if box_pos == 0:
-                    return
-                else:
-                    if box_pos == 1:
-                        lower = 0
-                        target = candidate[box_pos - 1]
-                        d = np.inf
-                        while d > (target - lower):
-                            d = int(np.ceil((np.random.pareto(0.5))))
-                        cut_location = target - d
-                        # cut_location = random.randrange(candidate[box_pos-1])
-                        if cut_location == 0:
-                            candidate.pop(box_pos - 1)
-                        else:
-                            candidate[box_pos - 1] = cut_location
-                    else:
-                        lower = candidate[box_pos - 2]
-                        target = candidate[box_pos - 1]
-                        d = np.inf
-                        while d > (target - lower):
-                            d = int(np.ceil((np.random.pareto(0.5))))
-                        cut_location = target - d
-                        # cut_location = random.randrange(candidate[box_pos-2], candidate[box_pos-1])
-                        if cut_location == candidate[box_pos - 2]:
-                            candidate.pop(box_pos - 1)
-                        else:
-                            candidate[box_pos - 1] = cut_location
-                    return candidate
+                candidate = candidate.right_join(box_pos)
             else:
                 # join with the one to the right
-                if box_pos == len(self.boxes) - 1:
-                    return
-                else:
-                    target = candidate[box_pos]
-                    upper = candidate[box_pos + 1]
-                    d = np.inf
-                    while d > (upper - target):
-                        d = int(np.ceil((np.random.pareto(0.5))))
-                    cut_location = target + d
-# cut_location = random.randrange(candidate[box_pos]+1, candidate[box_pos+1]+1)
-                    if cut_location == candidate[box_pos + 1]:
-                        candidate.pop(box_pos)
-                    else:
-                        candidate[box_pos] = cut_location
-                    return candidate
+                candidate = candidate.left_join(box_pos)
+        return candidate
