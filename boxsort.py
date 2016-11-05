@@ -12,16 +12,15 @@ from scipy.cluster import hierarchy
 
 
 class SortingAlgorithm(object):
-    """base class for sorting algorithms. this establishes the weight matrix,
-    and contains methods for moving things around in the matrix, but none of the
-    meat-and-potatoes of the algorithm."""
+    """base class for sorting algorithms. this establishes the
+    weight matrix, and contains methods for moving things around
+    in the matrix, but none of the meat-and-potatoes of the
+    algorithm."""
 
     def __init__(self, original_matrix):
-
         self.matrix_size = len(original_matrix)
         self.orig = original_matrix
         self.current_matrix = self.orig
-
         # build a weight matrix that falls away from the diagonal this will be
         # useful later when
         self.weight_matrix = np.ones(self.orig.shape)
@@ -44,22 +43,18 @@ class SortingAlgorithm(object):
             matrix = self.current_matrix.copy()
         else:
             matrix = matrix.copy()
-
         cautious = True
         if cautious:
             msg = 'order and matrix range variables must contain same contents'
             msg = '{msg}:{o}\n:{mr}'.format(msg=msg, o=order, mr=matrix_range)
             assert set(order) == set(matrix_range), msg
-
         start = matrix_range[0]
         stop = matrix_range[-1] + 1
-
         # sub_matrix = self.current_matrix[order, :]
         sub_matrix = matrix[order, :]
         matrix[start:stop, :] = sub_matrix
         sub_matrix = matrix[:, order]
         matrix[:, start:stop] = sub_matrix
-
         return matrix
 
     def test_fitness(self, array=None):
@@ -67,7 +62,6 @@ class SortingAlgorithm(object):
         current adjacency matrix and the weight matrix"""
         if array is None:
             array = self.current_matrix
-
         return (array * self.weight_matrix).sum()
 
 
@@ -75,13 +69,12 @@ class HierarchicalClustering(SortingAlgorithm):
     """use scipy.cluster.hierarchy to sort the matrix"""
 
     def __call__(self):
-
         self.order = hierarchy.leaves_list(hierarchy.linkage(self.orig))
         self.result = self.reorder(self.order, self.orig)
         return self.result, self.order
 
 
-class SASort(SortingAlgorithm):
+class BoxSort(SortingAlgorithm):
     def __init__(self, *args, **kwds):
 
         SortingAlgorithm.__init__(self, *args, **kwds)

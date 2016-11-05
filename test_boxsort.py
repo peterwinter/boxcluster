@@ -1,6 +1,8 @@
 import numpy as np
-import super_sort as ssort
-from generate_test_data import generate_nested_data
+from .boxsort import SortingAlgorithm
+from .boxsort import HierarchicalClustering
+from .boxsort import BoxSort
+from .fake_data import generate_nested_data
 import random
 
 
@@ -13,7 +15,7 @@ def basic_block_array(shape=(10, 10)):
 
 def test_SortingAlgorithmReorder():
     a = basic_block_array()
-    sa = ssort.SortingAlgorithm(a)
+    sa = SortingAlgorithm(a)
 
     new_order = [0, 1, 2, 3, 5, 4, 6, 7, 8, 9]
     test_soln = a[:, new_order][new_order, :]
@@ -24,7 +26,7 @@ def test_SortingAlgorithmReorder():
 
 def test_SortingAlgorithm_SmartReorder():
     a = basic_block_array()
-    sa = ssort.SortingAlgorithm(a)
+    sa = SortingAlgorithm(a)
 
     new_order = [0, 1, 2, 3, 5, 4, 6, 7, 8, 9]
     test_soln = a[:, new_order][new_order, :]
@@ -37,7 +39,7 @@ def test_SortingAlgorithm_SmartReorder():
     assert (test_soln == test_result).all()
 
 
-def test_SASort():
+def test_BoxSort():
     test_solution = generate_nested_data(noise=0.00001)
 
     n = len(test_solution)
@@ -45,7 +47,7 @@ def test_SASort():
     random.shuffle(order)
     test = test_solution[:, order][order, :]
 
-    sas = ssort.SASort(test)
+    sas = BoxSort(test)
     ds_result, ds_order = sas()
 
     sqerror_mat = (ds_result - test_solution)**2
@@ -53,14 +55,14 @@ def test_SASort():
     assert sqerror < 0.001
 
 
-def test_SASort():
+def test_HierSort():
     test_solution = generate_nested_data(noise=0.00001)
 
     n = len(test_solution)
     order = np.arange(n)
     random.shuffle(order)
     test = test_solution[:, order][order, :]
-    hcs = ssort.HierarchicalClustering(test)
+    hcs = HierarchicalClustering(test)
     ds_result, ds_order = hcs()
 
     sqerror_mat = (ds_result - test_solution)**2
