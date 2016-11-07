@@ -1,18 +1,11 @@
 from collections import abc
+from itertools import permutations
 import random
 import numpy as np
 
 
 class BaseBoxList(abc.MutableSequence):
     """ basic class functionality """
-    # def __init__(self, boxes=[]):
-    #     self.boxes = boxes
-    #     self.fitness = None
-
-    # def copy(self):
-    #     return self.__class__(boxes=self.boxes.copy())
-
-    # TODO: look into why the above functions work slightly better
     def __init__(self, boxes=[], fitness=np.inf):
         self.boxes = boxes
         self.fitness = fitness
@@ -63,12 +56,8 @@ class BaseBoxList(abc.MutableSequence):
         for begin, end in zip(boxes, boxes[1:]):
             yield begin, end
 
+
 class BoxList(BaseBoxList):
-
-    # def __init__(self, boxes=[]): #, fitness=np.inf):
-    #     super().__init__(boxes=boxes)#, fitness=fitness)
-
-
     def _random_bounded_pareto(self, limit):
         d = np.inf
         while d > limit:
@@ -81,12 +70,10 @@ class BoxList(BaseBoxList):
             takeover_size = self._random_bounded_pareto(limit=limit)
         return takeover_size
 
-    def right_join(self, box_pos):
+    def right_join(self, box_pos, size=None):
         """
         take some items from box on right.
-
         amount of items taken is _random_bounded_pareto()
-
         None is returned if no box to right.
         (ie. box_pos at limit)
         """
@@ -94,13 +81,15 @@ class BoxList(BaseBoxList):
         candidate = self.copy()
         if box_pos == len(self.boxes) - 1:
             return
-
         current_edge = candidate[box_pos]
         upper_bound = candidate[box_pos + 1]
-
         takeover_limit = (upper_bound - current_edge)
-        takeover_size = self._determine_takeover_size(limit=takeover_limit)
-
+        if size is None:
+            takeover_size = self._determine_takeover_size(limit=takeover_limit)
+        else:
+            takeover_size = size
+            assert takeover_size <= takeover_limit
+            assert takeover_size >= 0
         new_edge = current_edge + takeover_size
         # if cut_location is the next box, remove current box
         if new_edge == upper_bound:
@@ -110,44 +99,43 @@ class BoxList(BaseBoxList):
             candidate[box_pos] = new_edge
         return candidate
 
-    def left_join(self, box_pos):
+    def left_join(self, box_pos, size=None):
         """
         take some items from box on left.
-
         amount of items taken is _random_bounded_pareto()
         this moves the index of the box at box_pos - 1.
-
         None is returned if no box to left.
         (ie. box_pos = 0)
         """
         candidate = self.copy()
-
         if box_pos == 0:
             return
-
         lower_bound = 0  # seems like it should be one?
         if box_pos > 1:
             lower_bound = candidate[box_pos - 2]
         current_edge = candidate[box_pos - 1]
-
         takeover_limit = current_edge - lower_bound
-        takeover_size = self._determine_takeover_size(limit=takeover_limit)
-
+        if size is None:
+            takeover_size = self._determine_takeover_size(limit=takeover_limit)
+        else:
+            takeover_size = size
+            if takeover_size > takeover_limit:
+                print('takeover:', takeover_size, 'limit:', takeover_limit)
+            assert takeover_size <= takeover_limit
+            assert takeover_size >= 0
         new_edge = current_edge - takeover_size
         if new_edge == lower_bound:
+            print('popping', box_pos - 1)
             candidate.pop(box_pos - 1)
         else:
             candidate[box_pos - 1] = new_edge
         return candidate
 
-    def split(self, box_pos):
+    def split(self, box_pos, size=None):
         """ return a split list or None if box_pos doesn't work
-
         new item gets inserted at box_pos and existing item
         is shifted right.
-
         ie. new item inserted left of existing item
-
         all box_pos are possible
         limitations, if the box in a given position is too small... no luck
         """
@@ -159,7 +147,12 @@ class BoxList(BaseBoxList):
         r = upper - lower
         if r <= 1:
             return
-        cut_location = random.randrange(lower + 1, upper)
+        if size is None:
+            cut_location = random.randrange(lower + 1, upper)
+        else:
+            assert size > 0
+            cut_location = upper - size
+            assert cut_location >= lower + 1
         candidate.insert(box_pos, cut_location)
         return candidate
 
@@ -184,3 +177,35 @@ class BoxList(BaseBoxList):
                 box_pos = random.randrange(1, len(self.boxes))
                 candidate = candidate.left_join(box_pos)
         return candidate
+
+    def to_matrix(self):
+        """create coocurance matrix from boxlist"""
+        print(self)
+        N = self.boxes[-1]
+        matrix = np.zeros(shape=(N, N))
+        # diagonal always true
+        for i in range(N):
+            matrix[i, i] = 1
+        for begin, end in self.items():
+            a = range(begin, end)
+            for i, j in permutations(a, 2):
+                matrix[i, j] = 1
+        return matrix
+
+    @classmethod
+    def from_matrix(cls, matrix):
+        """create boxlist from coocurance matrix"""
+        # TODO: clean this up. make it readable
+        row = 0
+        b = []
+        N = len(matrix)
+        for i in range(N):
+            diff = np.diff(matrix[row])
+            if -1 in diff:
+                p0 = np.argmin(diff) + 1
+                b.append(p0)
+                row = p0
+            else:
+                break
+        b.append(N)
+        return BoxList(boxes=b)

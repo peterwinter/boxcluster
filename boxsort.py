@@ -75,32 +75,28 @@ class HierarchicalClustering(SortingAlgorithm):
 
 
 class BoxSort(SortingAlgorithm):
+
     def __init__(self, *args, **kwds):
-
         SortingAlgorithm.__init__(self, *args, **kwds)
-
         # set the counters and empty the files
         self._evals = 0
         self._last_move = 0
         self._last_best = 0
         # keep track of these in case something gets interrupted
-        open('sort_save.txt', 'w').close()
-        open('fit_save.txt', 'w').close()
-
+        # open('sort_save.txt', 'w').close()
+        # open('fit_save.txt', 'w').close()
         self.current_matrix = self.orig
         self.current_order = np.arange(len(self.orig))
-
         # log initial configuration
         self.current_fitness = self.test_fitness(self.current_matrix)
-        with open('initial_fitness.txt', 'w') as f:
-            print(self.current_fitness, file=f)
+        # with open('initial_fitness.txt', 'w') as f:
+        #     print(self.current_fitness, file=f)
         # shuffle the matrix and initialize tracker variables
 
     def initial_shuffle(self):
         order = self.current_order
         random.shuffle(order)
         self.current_order = np.array(order)
-
         self.current_matrix = self.reorder(self.current_order)
 
     def __call__(self,
@@ -134,80 +130,70 @@ to the square of the number of nodes.
         how much shit to print out
 """
         self.initial_shuffle()
-
-
         # store best
         self.best_matrix = self.current_matrix
         self.best_order = self.current_order
         self.best_fitness = self.test_fitness(self.current_matrix)
-
         # initial state
         self.current_fitness = self.test_fitness(self.current_matrix)
-
         #
         self.temperature = temperature
         self.cooling_factor = cooling_factor
         self.finishing_criterion = finishing_criterion
         self._delta = 0.
-
         # constants
         self.verbosity = verbosity
         steps = int(self.matrix_size * (100 + self.matrix_size) / 100)
         self.steps = steps
-
         # keep track of the time since the last move
         last_move_time = 0
+        # with open('best_order.txt', 'w') as h:
+        # each loop is a temperature
+        while 1:
+            # start a new temperature
+            self._moves_this_temp = 0
+            for n in range(steps):
 
-        with open('best_order.txt', 'w') as h:
-            # each loop is a temperature
-            while 1:
+                # keep track of the number of productive moves at this
+                # temperature so we can adaptively change the temp
 
-                # start a new temperature
-                self._moves_this_temp = 0
-                for n in range(steps):
+                self.turn()
+                last_move_time += self._evals - self._last_move
 
-                    # keep track of the number of productive moves at this
-                    # temperature so we can adaptively change the temp
+            # for i in self.best_order:
+            #     print(i, file=h)
 
-                    self.turn()
-                    last_move_time += self._evals - self._last_move
+            fraction_moved = float(self._moves_this_temp) / float(steps)
+            # since_last_best = self._evals - self._last_best
 
-                for i in self.best_order:
-                    print(i, file=h)
+            # print(self.temperature,
+            #       fraction_moved,
+            #       self.best_fitness,
+            #       np.ceil(1000. * fraction_moved),
+            #       self._evals - self._last_move,
+            #       steps * self.finishing_criterion)
 
-                fraction_moved = float(self._moves_this_temp) / float(steps)
-                since_last_best = self._evals - self._last_best
+            # self._save()
+            # if it has been a couple of cooling cycles since we last
+            # improved, then return. this should be long enough to search
+            # the local  landscape and find the local maximum.
+            if self._evals - self._last_move > steps * self.finishing_criterion:
+                return self.best_matrix, self.best_order
 
-                print(self.temperature,
-                      fraction_moved,
-                      self.best_fitness,
-                      np.ceil(1000. * fraction_moved),
-                      self._evals - self._last_move,
-                      steps * self.finishing_criterion)
+            if fraction_moved > 0.1:
+                self.temperature *= self.cooling_factor**100
+            else:
+                c_f = fraction_moved * 1000.
+                self.temperature *= self.cooling_factor**int(np.ceil(c_f))
 
-                self._save()
-                # if it has been a couple of cooling cycles since we last
-                # improved, then return. this should be long enough to search
-                # the local  landscape and find the local maximum.
-                if self._evals - self._last_move > steps * self.finishing_criterion:
-                    return self.best_matrix, self.best_order
+            # if since_last_best > steps * self.finishing_criterion:
+            #    self.temperature *= self.cooling_factor ** 5
 
-                if fraction_moved > 0.1:
-                    self.temperature *= self.cooling_factor**100
-                else:
-                    c_f = fraction_moved * 1000.
-                    self.temperature *= self.cooling_factor**int(np.ceil(c_f))
-
-                # if since_last_best > steps * self.finishing_criterion:
-                #    self.temperature *= self.cooling_factor ** 5
-
-    def _save(self):
-        """cleanup that occurs at the end of a cooling step"""
-
-        sys.stdout.flush()
-
-        with open('fit_save.txt', 'a') as fit_handle:
-            print((self.current_fitness, self.best_fitness), file=fit_handle)
+    # def _save(self):
+    #     """cleanup that occurs at the end of a cooling step"""
+    #     sys.stdout.flush()
+    #     with open('fit_save.txt', 'a') as fit_handle:
+    #         print((self.current_fitness, self.best_fitness), file=fit_handle)
 
     def turn(self):
 
