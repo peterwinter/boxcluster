@@ -1,14 +1,13 @@
 import numpy as np
 import pandas as pd
 from itertools import count
-
 from .boxlist import BoxList
 from .boxsort import SortingAlgorithm
 
 
 class BoxCut(SortingAlgorithm):
-    def __init__(self, *args, **kwds):
-        SortingAlgorithm.__init__(self, *args, **kwds)
+    def __init__(self, original_matrix):
+        super().__init__(original_matrix)
         self.current_matrix = self.orig
         # self.current_fitness = self.test_fitness(self.current_matrix)
 
@@ -23,22 +22,19 @@ class BoxCut(SortingAlgorithm):
         # update counters
         self._box_evals += 1
         self._box_t_since_last_move += 1
-
-        # propose move
-        candidate = self.boxes.propose_move()
+        candidate = self.propose_box_move(boxes=self.boxes)
         if not candidate:
             return
-
-        move_accepted = False
-        cur_fit = self.boxes.fitness
-        fitness = self._evaluate_box_fitness(candidate, matrix=self.sub_graph)
         # reset parameters
         self._update_if_best(candidate)
         self.best_boxes = self.boxes
-
-        p = np.exp((cur_fit - fitness) / cur_fit / self.box_temperature)
+        move_accepted = False
+        improvement_ratio = (
+            self.boxes.fitness - candidate.fitness) / self.boxes.fitness
+        p = self._probability_to_accept(improvement_ratio)
         if np.random.random() < p:
-            if cur_fit != fitness:
+            # why this extra counter? try removing
+            if improvement_ratio != 0:
                 self._box_t_since_last_move += 1
             self.boxes = candidate
             self._update_if_best(candidate)
@@ -49,6 +45,24 @@ class BoxCut(SortingAlgorithm):
                   candidate.fitness, self.best_boxes.fitness, len(self.boxes),
                   len(candidate), len(self.best_boxes))
         return record
+
+    def propose_box_move(self, boxes):
+        # propose move
+        candidate = boxes.propose_move()
+        if not candidate:
+            return
+        # calculate fitness
+        self._evaluate_box_fitness(candidate, matrix=self.sub_graph)
+        return candidate
+
+    def _probability_to_accept(self, improvement_ratio):
+        """
+        p = 1 when no difference in fitness
+        p > 1 when improvement (ie. always accept)
+        p gets small very quickly with negative improvement
+        """
+        p = np.exp(improvement_ratio / self.box_temperature)
+        return p
 
     def debug(self, matrix):
         it = self._iter_solve(matrix=matrix, debug=True)
@@ -61,24 +75,26 @@ class BoxCut(SortingAlgorithm):
             self.best_boxes = candidate
             self._box_t_since_last_move = 0
 
-    def _initialize_search(self, matrix):
+    def _initialize_search(self, matrix, boxes=None):
         self.sub_graph = matrix
-        self.box_temperature = 0.01
+        self.box_temperature = 0.05
         self._box_t_since_last_move = 0
         self._box_evals = 0  # count turns
-        self.boxes = BoxList([n + 1 for n in range(len(matrix))])
+        self.boxes = boxes
+        if boxes is None:
+            self.boxes = BoxList([n + 1 for n in range(len(matrix))])
         self._evaluate_box_fitness(self.boxes, matrix)
         self.best_boxes = self.boxes
 
-    def fit_boxes(self, matrix=None, debug=False):
+    def fit_boxes(self, matrix=None, boxes=None):
         if matrix is None:
             matrix = self.current_matrix
-        for i in self._iter_solve(matrix=matrix):
+        for i in self._iter_solve(matrix=matrix, boxes=boxes):
             pass
         return self.best_boxes, self.best_boxes.fitness
 
-    def _iter_solve(self, matrix, debug=False):
-        self._initialize_search(matrix=matrix)
+    def _iter_solve(self, matrix, debug=False, boxes=None):
+        self._initialize_search(matrix=matrix, boxes=boxes)
         if debug:
             head = ('evals', 't_since_last_move', 'move_accepted', 'p', 'temp',
                     'current_fit', 'new_fit', 'best_fit', 'current_len',
@@ -86,10 +102,15 @@ class BoxCut(SortingAlgorithm):
             yield head
 
         n = len(matrix)
+        lower_limit = 100
+        if n < lower_limit:
+            n = lower_limit
+
         for i in count():
             # every n iterations, lower temp
             if not (i % n):
                 self.box_temperature *= 0.9
+            # Key Line!
             debug_feed = self.box_turn()
             if self._box_t_since_last_move > n:
                 break
@@ -110,15 +131,25 @@ class BoxCut(SortingAlgorithm):
         non_box_mask = np.ones(shape=(n, n), dtype=bool)
         # evaluate the least-squares fitness for each box
         for begin, end in boxes.items():
-            box_nodes = matrix[begin:end, begin:end]
+            # print(begin, end)
             non_box_mask[begin:end, begin:end] = False
-            m = box_nodes.mean()
+            if end - begin <= 1:
+                continue
+            box_nodes = matrix[begin:end, begin:end].copy()
+            # print(box_nodes)
+            np.fill_diagonal(box_nodes, np.nan)
+            # print(box_nodes)
+            m = np.nanmean(box_nodes)
+            # print(m)
             sq = (box_nodes - m)**2
+            fitness += np.nansum(sq)
+            # print(fitness)
+        if non_box_mask.any():
+            # now do it for the non-box nodes
+            non_box_nodes = matrix[non_box_mask]
+            # print(non_box_nodes)
+            m = non_box_nodes.mean()
+            sq = (non_box_nodes - m)**2
             fitness += sq.sum()
-        # now do it for the non-box nodes
-        non_box_nodes = matrix[non_box_mask]
-        m = non_box_nodes.mean()
-        sq = (non_box_nodes - m)**2
-        fitness += sq.sum()
+        # print(fitness)
         boxes.fitness = fitness
-        return fitness
