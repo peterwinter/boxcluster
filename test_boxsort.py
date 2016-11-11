@@ -1,6 +1,5 @@
 import numpy as np
 from .boxsort import SortingAlgorithm
-from .boxsort import HierarchicalClustering
 from .boxsort import BoxSort
 from .fake_data import generate_nested_data
 import random
