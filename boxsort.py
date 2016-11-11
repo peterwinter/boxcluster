@@ -3,12 +3,11 @@
 notably, performs matrix sorting as described in marta's pnas, using simulated
 annealing"""
 
-import sys
 import numpy as np
 import random
 import math
-from scipy.stats import expon
-from scipy.cluster import hierarchy
+# from scipy.stats import expon
+from collections import namedtuple
 
 
 class SortingAlgorithm(object):
@@ -64,40 +63,48 @@ class SortingAlgorithm(object):
             array = self.current_matrix
         return (array * self.weight_matrix).sum()
 
-
-class HierarchicalClustering(SortingAlgorithm):
-    """use scipy.cluster.hierarchy to sort the matrix"""
-
-    def __call__(self):
-        self.order = hierarchy.leaves_list(hierarchy.linkage(self.orig))
-        self.result = self.reorder(self.order, self.orig)
-        return self.result, self.order
+# class HierarchicalClustering(SortingAlgorithm):
+# from scipy.cluster import hierarchy
+#     """use scipy.cluster.hierarchy to sort the matrix"""
+#     def __call__(self):
+#         self.order = hierarchy.leaves_list(hierarchy.linkage(self.orig))
+#         self.result = self.reorder(self.order, self.orig)
+#         return self.result, self.order
 
 
 class BoxSort(SortingAlgorithm):
-
     def __init__(self, *args, **kwds):
         SortingAlgorithm.__init__(self, *args, **kwds)
         # set the counters and empty the files
         self._evals = 0
         self._last_move = 0
         self._last_best = 0
-        # keep track of these in case something gets interrupted
-        # open('sort_save.txt', 'w').close()
-        # open('fit_save.txt', 'w').close()
         self.current_matrix = self.orig
         self.current_order = np.arange(len(self.orig))
-        # log initial configuration
         self.current_fitness = self.test_fitness(self.current_matrix)
-        # with open('initial_fitness.txt', 'w') as f:
-        #     print(self.current_fitness, file=f)
-        # shuffle the matrix and initialize tracker variables
 
-    def initial_shuffle(self):
+    def shuffle_order(self):
         order = self.current_order
         random.shuffle(order)
         self.current_order = np.array(order)
         self.current_matrix = self.reorder(self.current_order)
+
+    def initialize(self):
+        self.shuffle_order()
+        # store best
+        self.best_matrix = self.current_matrix
+        self.best_order = self.current_order
+        self.best_fitness = self.test_fitness(self.current_matrix)
+        # initial state
+        self.current_fitness = self.test_fitness(self.current_matrix)
+        # constants
+        # this heuristic seems weird:
+        steps = int(self.matrix_size * (100 + self.matrix_size) / 100)
+        self.steps = steps
+        # keep track of the time since the last move
+        self.last_move_time = 0
+        self.finishing_threshold = self.finishing_criterion * steps
+        self._delta = 0.  #how close we are to quitting
 
     def __call__(self,
                  cooling_factor=0.999,
@@ -112,7 +119,7 @@ temperature, where N is the matrix order. This heuristic scales the algorithm
 to the square of the number of nodes.
 
     parameters:
-        cooling factor (default: 0.98)
+    cooling factor (default: 0.98)
         the principle determinant of the cooling schedule. if you set this too
         low, they system will freeze too fast.
     temperature (default: 0.01)
@@ -129,176 +136,157 @@ to the square of the number of nodes.
     verbose (default: False)
         how much shit to print out
 """
-        self.initial_shuffle()
-        # store best
-        self.best_matrix = self.current_matrix
-        self.best_order = self.current_order
-        self.best_fitness = self.test_fitness(self.current_matrix)
-        # initial state
-        self.current_fitness = self.test_fitness(self.current_matrix)
-        #
-        self.temperature = temperature
         self.cooling_factor = cooling_factor
+        self.temperature = temperature
         self.finishing_criterion = finishing_criterion
-        self._delta = 0.
-        # constants
         self.verbosity = verbosity
-        steps = int(self.matrix_size * (100 + self.matrix_size) / 100)
-        self.steps = steps
-        # keep track of the time since the last move
-        last_move_time = 0
-        # with open('best_order.txt', 'w') as h:
+        # always keep initialize after these assignments
+        self.initialize()
+
         # each loop is a temperature
         while 1:
             # start a new temperature
-            self._moves_this_temp = 0
-            for n in range(steps):
-
-                # keep track of the number of productive moves at this
-                # temperature so we can adaptively change the temp
-
-                self.turn()
-                last_move_time += self._evals - self._last_move
-
-            # for i in self.best_order:
-            #     print(i, file=h)
-
-            fraction_moved = float(self._moves_this_temp) / float(steps)
-            # since_last_best = self._evals - self._last_best
-
-            # print(self.temperature,
-            #       fraction_moved,
-            #       self.best_fitness,
-            #       np.ceil(1000. * fraction_moved),
-            #       self._evals - self._last_move,
-            #       steps * self.finishing_criterion)
-
-            # self._save()
+            fraction_moved = self.temperature_movement_block()
             # if it has been a couple of cooling cycles since we last
             # improved, then return. this should be long enough to search
-            # the local  landscape and find the local maximum.
-            if self._evals - self._last_move > steps * self.finishing_criterion:
+            # the local landscape and find the local maximum.
+            if self.last_move_time > self.finishing_threshold:
                 return self.best_matrix, self.best_order
-
             if fraction_moved > 0.1:
                 self.temperature *= self.cooling_factor**100
             else:
                 c_f = fraction_moved * 1000.
                 self.temperature *= self.cooling_factor**int(np.ceil(c_f))
 
-            # if since_last_best > steps * self.finishing_criterion:
-            #    self.temperature *= self.cooling_factor ** 5
+    def temperature_movement_block(self):
+        self._moves_this_temp = 0
+        # perform block of moves
+        for n in range(self.steps):
+            self.turn()
+            self.last_move_time = self._evals - self._last_move
+        # keep track of the number of productive moves at this
+        # temperature so we can adaptively change the temp
+        fraction_moved = float(self._moves_this_temp) / float(self.steps)
+        return fraction_moved
 
-    # def _save(self):
-    #     """cleanup that occurs at the end of a cooling step"""
-    #     sys.stdout.flush()
-    #     with open('fit_save.txt', 'a') as fit_handle:
-    #         print((self.current_fitness, self.best_fitness), file=fit_handle)
-
-    def turn(self):
-
-        self._evals += 1
-
-        # roll the dice for the size of the slice
+    def determine_size(self):
+        """size is random integer from pareto distribution"""
         size = np.inf
         while size >= self.matrix_size:
             size = np.random.pareto(0.2)
-            # size = expon.rvs(0., self.matrix_size/5.)*(1. - self._delta)
-            if size < 1:
-                size = 1  # for some reason, this was returning negative values
             size = int(math.ceil(size))
+        return size
 
+    def determine_positions(self, size):
         # roll the dice for the location---the starting position of the slice
         position = random.randrange(0, self.matrix_size - size)
-
-        # move it a distance
-        # XXX this should probably depend on the temp!
+        # TODO: this should probably depend on the temp!
         while 1:
-            # new_pos = int(math.ceil(np.random.pareto(0.7)))
-            new_pos = int(math.ceil(expon.rvs(0., self.matrix_size / 5.)))
             new_pos = np.random.pareto(0.2)
             new_pos = int(math.ceil(new_pos))
-
             # random sign
             if np.random.random() < 0.5:
                 new_pos = -new_pos
-
             if 0 <= (position + new_pos) <= (self.matrix_size - size):
                 break
+        return position, new_pos
 
-        order = list(range(self.matrix_size))
-
-        # propose a new order
+    def propose_cuts(self, size, position, new_pos):
+        Cuts = namedtuple('cuts', ("lower_limit", "lower_cut", "pivot",
+                                   "upper_cut", "upper_limit"))
+        # the lowest and highest positions
+        lower_limit = 0
+        upper_limit = self.matrix_size
+        # the upper edge of the origional box is the center
+        # of movement for both up and down shifts.
+        pivot = position + size
         if new_pos > 0:
-            new_order = order[0: position] + \
-                        order[position+size: position+size+new_pos] + \
-                        order[position: position+size] + \
-                        order[position+size+new_pos: self.matrix_size]
-            sub_matrix_range = list(range(position, position + size + new_pos))
-            sub_order = list(range(position+size, position+size+new_pos)) + \
-                        list(range(position, position+size))
-
+            lower_cut = position
+            upper_cut = position + size + new_pos
         elif new_pos < 0:
-            new_order = order[0: position+new_pos] + \
-                        order[position: position+size] + \
-                        order[position+new_pos: position] + \
-                        order[position+size: self.matrix_size]
+            lower_cut = position + new_pos
+            upper_cut = position + size
+        return Cuts(lower_limit, lower_cut, pivot, upper_cut, upper_limit)
 
-            sub_matrix_range = list(range(position + new_pos, position + size))
-            sub_order = list(range(position, position+size)) + \
-                        list(range(position+new_pos, position))
+    def cuts_to_order(self, cuts):
+        # lower cut to pivot --> move right.
+        # move left <-- pivot to upper cut.
+        order = list(range(self.matrix_size))
+        a = order[cuts.lower_limit:cuts.lower_cut]
+        b = order[cuts.pivot:cuts.upper_cut]
+        c = order[cuts.lower_cut:cuts.pivot]
+        d = order[cuts.upper_cut:cuts.upper_limit]
+        new_order = a + b + c + d
+        return new_order
 
-        #XXX
-        # the proposed matrix and fitness that go with the new order
+    def cuts_to_sub_matrix_range(self, cuts):
+        sub_matrix_range = list(range(cuts.lower_cut, cuts.upper_cut))
+        return sub_matrix_range
+
+    def cuts_to_sub_order(self, cuts):
+        move_right = list(range(cuts.lower_cut, cuts.pivot))
+        move_left = list(range(cuts.pivot, cuts.upper_cut))
+        sub_order = move_left + move_right
+        return sub_order
+
+    def move_is_accepted(self, cur_fit, new_fit):
+        # if roll some dice to find out if we accept the move
+        if new_fit > cur_fit:
+            return True
+        else:
+            improvement_ratio = (new_fit - cur_fit) / cur_fit
+            p = np.exp(improvement_ratio / self.temperature)
+        # if self.verbosity == 2:
+        #     a = (self._evals, self.temperature, self.current_fitness, fitness,
+        #          p, self._evals - self._last_move, size, position, new_pos)
+        #     s = '%6d %.5e %.12e %.8e %.3e\t%5d %5d %5d %+5d' % a
+        #     print(s, file=sys.stderr)
+        return np.random.random() < p
+
+    def propose_new_matrix(self):
+        size = self.determine_size()
+        position, new_pos = self.determine_positions(size)
+        cuts = self.propose_cuts(size, position, new_pos)
+        new_order = self.cuts_to_order(cuts)
+        sub_matrix_range = self.cuts_to_sub_matrix_range(cuts)
+        sub_order = self.cuts_to_sub_order(cuts)
         try:
             new_matrix = self.smart_reorder(sub_order, sub_matrix_range)
         except:
             print(position, new_pos, size, self.matrix_size)
             raise
+        return new_matrix, new_order
 
-        fitness = self.test_fitness(new_matrix)
-
+    def turn(self):
+        self._evals += 1
+        new_matrix, new_order = self.propose_new_matrix()
         # calculate the probability of accepting the new order
+        new_fit = self.test_fitness(new_matrix)
         cur_fit = self.current_fitness
-
-        if fitness > cur_fit:
-            p = 1
-        else:
-            p = np.exp((fitness - cur_fit) / cur_fit / self.temperature)
-
-        if self.verbosity == 2:
-            a = (self._evals, self.temperature, self.current_fitness, fitness,
-                 p, self._evals - self._last_move, size, position, new_pos)
-            s = '%6d %.5e %.12e %.8e %.3e\t%5d %5d %5d %+5d' % a
-            print(s, file=sys.stderr)
-
-        # if roll some dice to find out if we accept the move
-        if np.random.random() < p:
+        if self.move_is_accepted(cur_fit, new_fit):
             # protect against the kind of fruitless cycling that can occur if
             # two configurations have the same fitness
-            if cur_fit != fitness:
+            if cur_fit != new_fit:
                 self._last_move = self._evals
                 self._moves_this_temp += 1
-
             # update matrix
-            self.current_fitness = fitness
+            self.current_fitness = new_fit
             self.current_matrix = new_matrix
             self.current_order = self.current_order[new_order]
-
-            if self.current_fitness > self.best_fitness:
-                if self.verbosity == 1:
-                    a = (self._evals, self.temperature, \
-                         self.current_fitness, fitness, p, \
-                         self._evals - self._last_move, size, position,\
-                         new_pos)
-                    print('%6d %.5e %.12e %.8e %.3e\t%5d %5d %5d %+5d' % a)
-
-                self._last_best = self._evals
-                self.best_fitness = self.current_fitness
-                self.best_order = self.current_order
-                self.best_matrix = self.current_matrix
-
+            self.update_status()
         # how close we are to quitting
-        self._delta = (self._evals - self._last_move
-                       ) / self.steps / self.finishing_criterion
-        return fitness
+        self._delta = self.last_move_time / self.finishing_threshold
+        return new_fit
+
+    def update_status(self):
+        if self.current_fitness > self.best_fitness:
+            # if self.verbosity == 1:
+            #     a = (self._evals, self.temperature, \
+            #             self.current_fitness, new_fit, p, \
+            #             self._evals - self._last_move, size, position,\
+            #             new_pos)
+            #     print('%6d %.5e %.12e %.8e %.3e\t%5d %5d %5d %+5d' % a)
+            self._last_best = self._evals
+            self.best_fitness = self.current_fitness
+            self.best_order = self.current_order
+            self.best_matrix = self.current_matrix

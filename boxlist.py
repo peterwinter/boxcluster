@@ -125,7 +125,6 @@ class BoxList(BaseBoxList):
             assert takeover_size >= 0
         new_edge = current_edge - takeover_size
         if new_edge == lower_bound:
-            print('popping', box_pos - 1)
             candidate.pop(box_pos - 1)
         else:
             candidate[box_pos - 1] = new_edge
@@ -163,7 +162,7 @@ class BoxList(BaseBoxList):
         """
         candidate = self.copy()
         # split
-        if random.random() < 0.5:
+        if random.random() < 0.5 or len(self) == 1:
             box_pos = random.randrange(len(self.boxes))
             candidate = candidate.split(box_pos)
         # join
