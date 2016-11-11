@@ -195,6 +195,11 @@ class TestBoxListMoves:
         out3 = b.split(box_pos=2)
         assert out3 is None
 
+    # TODO: make sure that joins and split proposals do not change
+    # original boxlist
+    # def test_boxmove_copy(self):
+    #     hey
+
 # TODO: add this stuff in.
 # def to_matrix(self)
 # def from_matrix(cls, matrix)

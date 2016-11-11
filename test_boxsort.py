@@ -55,16 +55,23 @@ def test_BoxSort():
     assert sqerror < 0.001
 
 
-def test_HierSort():
-    test_solution = generate_nested_data(noise=0.00001)
+# def test_HierSort():
+#     test_solution = generate_nested_data(noise=0.00001)
 
-    n = len(test_solution)
-    order = np.arange(n)
-    random.shuffle(order)
-    test = test_solution[:, order][order, :]
-    hcs = HierarchicalClustering(test)
-    ds_result, ds_order = hcs()
+#     n = len(test_solution)
+#     order = np.arange(n)
+#     random.shuffle(order)
+#     test = test_solution[:, order][order, :]
+#     hcs = HierarchicalClustering(test)
+#     ds_result, ds_order = hcs()
 
-    sqerror_mat = (ds_result - test_solution)**2
-    sqerror = sqerror_mat.sum()
-    assert sqerror < 0.001
+#     sqerror_mat = (ds_result - test_solution)**2
+#     sqerror = sqerror_mat.sum()
+#     assert sqerror < 0.001
+
+
+
+# Test. determine_size()
+# size >= 1
+# size <= self.matrix_size
+# size is integer... random sample 100 times.
