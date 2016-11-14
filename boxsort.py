@@ -180,7 +180,7 @@ to the square of the number of nodes.
     def determine_positions(self, size):
         # roll the dice for the location---the starting position of the slice
         position = random.randrange(0, self.matrix_size - size)
-        # TODO: this should probably depend on the temp!
+        # TODO: size should probably depend on the temp!
         while 1:
             new_pos = np.random.pareto(0.2)
             new_pos = int(math.ceil(new_pos))
