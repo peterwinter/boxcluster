@@ -5,23 +5,21 @@ Tools for sorting and clustering symmetrical square matricies based on the techn
 Code for extracting heirarchical structure are currently being implemented
 
 ## Install
-Not yet on Pypi, so I'm using the old fashioned way
 ```
 $ git clone https://github.com/peterwinter/boxcluster.git boxcluster
 ```
-
+soon to be on Pypi
 
 
 ## Tutorial and Examples
-
-
-
-
+A full tutorial and extra examples can be found in a [sister repo.](https://github.com/peterwinter/boxcluster_tutorial)
 
 ## Team
 
-[![Peter Winter](https://avatars2.githubusercontent.com/u/5788194?v=3&u=df9b095fb2aece119eb15269a7199cdb2c147d4c&s=140)
----|---|---
+![Peter Winter](https://avatars2.githubusercontent.com/u/5788194?v=3&u=df9b095fb2aece119eb15269a7199cdb2c147d4c&s=140)
+
+---
+
 [Peter Winter](https://github.com/peterwinter)
 
 ## Special Thanks
