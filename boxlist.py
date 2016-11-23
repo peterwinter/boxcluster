@@ -208,3 +208,37 @@ class BoxList(BaseBoxList):
                 break
         b.append(N)
         return BoxList(boxes=b)
+
+    def calculate_fitness(self, matrix):
+        """least squares
+        sum of squared error from mean within every box
+        + the squared error from mean of every cell outside of a box
+        """
+        fitness = 0.
+        n = len(matrix)
+        non_box_mask = np.ones(shape=(n, n), dtype=bool)
+        # evaluate the least-squares fitness for each box
+        for begin, end in self.items():
+            # print(begin, end)
+            non_box_mask[begin:end, begin:end] = False
+            if end - begin <= 1:
+                continue
+            box_nodes = matrix[begin:end, begin:end].copy()
+            # print(box_nodes)
+            np.fill_diagonal(box_nodes, np.nan)
+            # print(box_nodes)
+            m = np.nanmean(box_nodes)
+            # print(m)
+            sq = (box_nodes - m)**2
+            fitness += np.nansum(sq)
+            # print(fitness)
+        if non_box_mask.any():
+            # now do it for the non-box nodes
+            non_box_nodes = matrix[non_box_mask]
+            # print(non_box_nodes)
+            m = non_box_nodes.mean()
+            sq = (non_box_nodes - m)**2
+            fitness += sq.sum()
+        # print(fitness)
+        self.fitness = fitness
+        return fitness
