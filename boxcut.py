@@ -7,7 +7,6 @@ from .anneal import Annealer
 
 
 class BoxCut(SortingAlgorithm):
-
     def __init__(self, original_matrix):
         super().__init__(original_matrix)
         self.current_matrix = self.orig
@@ -30,8 +29,8 @@ class BoxCut(SortingAlgorithm):
         self._update_if_best(candidate)
         self.best_boxes = self.boxes
         move_accepted = False
-        if self.move_is_accepted(cur_fit=self.boxes.fitness,
-                                 new_fit=candidate.fitness):
+        if self.move_is_accepted(
+                cur_fit=self.boxes.fitness, new_fit=candidate.fitness):
             # why this extra counter? try removing
             # if improvement_ratio != 0:
             #     self._box_t_since_last_move += 1
@@ -40,9 +39,9 @@ class BoxCut(SortingAlgorithm):
             move_accepted = True
 
         record = (self._box_evals, self._box_t_since_last_move, move_accepted,
-                  self.box_temperature, self.boxes.fitness,
-                  candidate.fitness, self.best_boxes.fitness, len(self.boxes),
-                  len(candidate), len(self.best_boxes))
+                  self.box_temperature, self.boxes.fitness, candidate.fitness,
+                  self.best_boxes.fitness, len(self.boxes), len(candidate),
+                  len(self.best_boxes))
         return record
 
     def _probability_to_accept(self, improvement):
@@ -133,64 +132,100 @@ class BoxCut(SortingAlgorithm):
         if boxes is None:
             boxes = self.boxes
         boxes.calculate_fitness(matrix)
-        # fitness = 0.
-        # n = len(matrix)
-        # non_box_mask = np.ones(shape=(n, n), dtype=bool)
-        # # evaluate the least-squares fitness for each box
-        # for begin, end in boxes.items():
-        #     # print(begin, end)
-        #     non_box_mask[begin:end, begin:end] = False
-        #     if end - begin <= 1:
-        #         continue
-        #     box_nodes = matrix[begin:end, begin:end].copy()
-        #     # print(box_nodes)
-        #     np.fill_diagonal(box_nodes, np.nan)
-        #     # print(box_nodes)
-        #     m = np.nanmean(box_nodes)
-        #     # print(m)
-        #     sq = (box_nodes - m)**2
-        #     fitness += np.nansum(sq)
-        #     # print(fitness)
-        # if non_box_mask.any():
-        #     # now do it for the non-box nodes
-        #     non_box_nodes = matrix[non_box_mask]
-        #     # print(non_box_nodes)
-        #     m = non_box_nodes.mean()
-        #     sq = (non_box_nodes - m)**2
-        #     fitness += sq.sum()
-        # # print(fitness)
-        # boxes.fitness = fitness
 
 
 class BoxCut2(Annealer):
 
-    def __init__(self, original_matrix):
-        self.matrix_size = len(original_matrix)
-        self.orig = original_matrix
-        self.current_matrix = self.orig
-        # build a weight matrix that falls away from the diagonal this will be
-        # useful later when
-        self.weight_matrix = np.ones(self.orig.shape)
-        for i in range(self.matrix_size):
-            for j in range(self.matrix_size):
-                self.weight_matrix[i, j] -= (abs(i - j) /
-                                             float(self.matrix_size))
+    maximize = False
+
+    def __init__(self, matrix):
+        self.matrix_size = len(matrix)
+        self.matrix = matrix
+        self._since_last_move = 0
+        self._since_last_best = 0
+        self._moves_this_temp = 0
+
+        cooling_factor = 0.999
+        temperature = 0.001
+        finishing_criterion = 1
+        self.cooling_factor = cooling_factor
+        self.temp = temperature
+        self.finishing_criterion = finishing_criterion
 
     def propose_move(self):
         # propose move
+        # print(self.current)
+        candidate = None
+        while candidate is None:
+            candidate = self.current.propose_move()
+        # print(candidate)
+        # propose move
+        # calculate fitness
+        self.evaluate_fitness(candidate, matrix=self.matrix)
+        return candidate
+
+    def evaluate_fitness(self, candidate, **kwargs):
+        candidate.calculate_fitness(**kwargs)
+
+    def _initialize_state(self, boxes=None):
+        self._since_last_move = 0
+        self._since_last_best = 0
+        self._moves_this_temp = 0
+        matrix = self.matrix
+        if boxes is None:
+            boxes = BoxList([n + 1 for n in range(len(matrix))])
+        self.evaluate_fitness(candidate=boxes, matrix=matrix)
+        self.current = boxes
+        self.best = boxes.copy()
+
+    def __call__(self,
+                 cooling_factor=0.999,
+                 temperature=0.001,
+                 finishing_criterion=1,
+                 boxes=None,
+                 save_history=False):
+
+        # save input parameters
+        self.cooling_factor = cooling_factor
+        self.temp = temperature
+        self.finishing_criterion = finishing_criterion
+        self.history = []
+
+        # run solver
+        block_size = 100
+        # create self.current, self.best
+        self._initialize_state(boxes=boxes)
+
+        for i in count():
+            trace = self.turn(i)
+            # print(trace)
+            # break if done
+            if self._break_condition():
+                break
+            # save states if appropriate
+            if save_history:
+                self.history.append(trace)
+            # increment temperature
+            if self._temp_block_finished(i, block_size):
+                self.decrease_temp()
+
+            if i > 1000:
+                break
+
+        return self.best
+
+    def _break_condition(self):
         pass
 
-    def evaluate_fitness(self, candidate):
-        candidate.calculate_fitness()
+        n = len(self.matrix)
+        lower_limit = 100
+        if n < lower_limit:
+            n = lower_limit
 
+        if self._since_last_move > n:
+            return True
+        return False
 
-    def _initialize_state(self, matrix, boxes=None):
-        self.sub_graph = matrix
-        self.box_temperature = 0.05
-        self._box_t_since_last_move = 0
-        self._box_evals = 0  # count turns
-        self.boxes = boxes
-        if boxes is None:
-            self.boxes = BoxList([n + 1 for n in range(len(matrix))])
-        self._evaluate_box_fitness(self.boxes, matrix)
-        self.best_boxes = self.boxes
+    def decrease_temp(self):
+        # TODO: make depend on cooling factor
+        self.temp *= 0.9
