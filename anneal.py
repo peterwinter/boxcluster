@@ -1,9 +1,7 @@
 import numpy as np
-import pandas as pd
 from itertools import count
-from .boxsort import SortingAlgorithm
 from collections import namedtuple
-from collections import abc
+# from collections import abc
 
 
 class BaseAnnealer(object):
@@ -23,9 +21,11 @@ class BaseAnnealer(object):
                 return True
             delta = -delta
 
-        if np.abs(cur_fit) < 0.0001:
-            cur_fit == 0.0001
-        improvement = delta / cur_fit
+        norm = np.abs(cur_fit)
+        if norm < 0.0001:
+            norm == 0.0001
+
+        improvement = delta / norm
         p = self._probability_to_accept(improvement)
         return np.random.random() < p
 
@@ -46,13 +46,11 @@ class Annealer(BaseAnnealer):
     maximize = True
     Trace = namedtuple('trace', ('evals',
                                  'last_move',
-                                 'last_best',
                                  'moves_this_temp',
                                  'move_accepted',
                                  'temp',
                                  'current_fit',
-                                 'new_fit',
-                                 'best_fit'))
+                                 'new_fit'))
 
     # @abc.abstractmethod
     def propose_move(self):
@@ -73,22 +71,26 @@ class Annealer(BaseAnnealer):
 
         move_accepted = False
         self._update(candidate)
+
         if self.accept_move(cur_fit, new_fit):
-            self.current = candidate
             move_accepted = True
             self._since_last_move = 0
-        return self.make_trace(i, move_accepted, candidate)
+
+        trace = self.make_trace(i, move_accepted, candidate)
+
+        if move_accepted:
+            self.current = candidate
+
+        return trace
 
     def make_trace(self, i, move_accepted, candidate):
         return self.Trace(i,
                           self._since_last_move,
-                          self._since_last_best,
-                          move_accepted,
                           self._moves_this_temp,
+                          move_accepted,
                           self.temp,
                           self.current.fitness,
-                          candidate.fitness,
-                          self.best.fitness)
+                          candidate.fitness)
 
     def __call__(self,
                  cooling_factor=0.999,
@@ -105,7 +107,6 @@ class Annealer(BaseAnnealer):
 
         # run solver
         block_size = 100
-        # create self.current, self.best
         self._initialize_state(boxes=boxes)
         for i in count():
             state = self.turn(i)
@@ -121,12 +122,7 @@ class Annealer(BaseAnnealer):
         return self.obj
 
     def _update(self, candidate):
-
         self._since_last_move += 1
-        self._since_last_best += 1
-        if candidate < self.best:
-            self.best = candidate.copy()
-            self._since_last_best = 0
 
     def _initialize_state(self, matrix, boxes=None):
         pass

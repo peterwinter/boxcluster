@@ -11,7 +11,6 @@ class BoxCut(Annealer):
         self.matrix_size = len(matrix)
         self.matrix = matrix
         self._since_last_move = 0
-        self._since_last_best = 0
         self._moves_this_temp = 0
 
         cooling_factor = 0.999
@@ -38,14 +37,12 @@ class BoxCut(Annealer):
 
     def _initialize_state(self, boxes=None):
         self._since_last_move = 0
-        self._since_last_best = 0
         self._moves_this_temp = 0
         matrix = self.matrix
         if boxes is None:
             boxes = BoxList([n + 1 for n in range(len(matrix))])
         self.evaluate_fitness(candidate=boxes, matrix=matrix)
         self.current = boxes
-        self.best = boxes.copy()
 
     def __call__(self,
                  cooling_factor=0.999,
@@ -62,7 +59,6 @@ class BoxCut(Annealer):
 
         # run solver
         block_size = self.matrix_size
-        # create self.current, self.best
         self._initialize_state(boxes=boxes)
 
         for i in count():
@@ -78,7 +74,7 @@ class BoxCut(Annealer):
             if self._temp_block_finished(i, block_size):
                 self.decrease_temp()
 
-        return self.best
+        return self.current
 
     def _break_condition(self):
         n = len(self.matrix)
