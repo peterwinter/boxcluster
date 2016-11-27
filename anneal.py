@@ -71,10 +71,11 @@ class Annealer(BaseAnnealer):
 
         move_accepted = False
         self._update(candidate)
-
         if self.accept_move(cur_fit, new_fit):
             move_accepted = True
-            self._since_last_move = 0
+            if new_fit > cur_fit:
+                self._since_last_move = 0
+            self._moves_this_temp += 1
 
         trace = self.make_trace(i, move_accepted, candidate)
 
