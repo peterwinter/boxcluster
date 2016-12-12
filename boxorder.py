@@ -2,9 +2,10 @@ from collections import namedtuple
 import numpy as np
 import random
 import math
+from .mixins import FitnessEqualitiesMixin
 
 
-class BaseFitMatrix(object):
+class BaseFitMatrix(FitnessEqualitiesMixin):
     """ basic class functionality """
 
     def __init__(self, matrix, fitness=np.inf, order=None, weights=None):
@@ -47,37 +48,8 @@ class BaseFitMatrix(object):
         f = round(self.fitness, ndigits=2)
         return 'Fit:{f} matrix: {m}'.format(f=f, m=self.matrix)
 
-    def __lt__(self, other):
-        return self.fitness < other.fitness
-
-    def __le__(self, other):
-        return self.fitness <= other.fitness
-
-    def __eq__(self, other):
-        return self.fitness == other.fitness
-
-    def __ne__(self, other):
-        return self.fitness != other.fitness
-
-    def __gt__(self, other):
-        return self.fitness > other.fitness
-
-    def __ge__(self, other):
-        return self.fitness >= other.fitness
-
     def inverse_order(self):
         return np.argsort(self.order)
-
-    # def __getitem__(self, key):
-    #     return self.boxes[key]
-
-    # def __setitem__(self, key, value):
-    #     self.boxes[key] = value
-
-    # def __delitem__(self, key):
-    #     del self.boxes[key]
-    # def insert(self, key, value):
-    #     self.boxes.insert(key, value)
 
 
 class BaseSortMatrix(BaseFitMatrix):
@@ -198,56 +170,3 @@ class OrderedArray(BaseSortMatrix):
             print(position, new_pos, size, self.n)
             raise
         return new_matrix, new_order
-
-# class BoxOrder(object):
-#     def __init__(self, order):
-#         "docstring"
-#         self.order = order
-#         self.Cuts = namedtuple('cuts', ("lower_limit", "lower_cut", "pivot",
-#                                         "upper_cut", "upper_limit"))
-
-#     def propose_cuts(self, size, position, new_pos):
-#         # order = list(range(self.matrix_size))
-#         order = np.arange(self.n)
-#         # propose a new order
-
-#         # the lowest and highest positions
-#         lower_limit = 0
-#         upper_limit = self.matrix_size
-
-#         # the upper edge of the origional box is the center
-#         # of movement for both up and down shifts.
-#         pivot = position + size
-
-#         if new_pos > 0:
-#             lower_cut = position
-#             upper_cut = position + size + new_pos
-
-#         elif new_pos < 0:
-#             lower_cut = postion + new_pos
-#             upper_cut = position + size
-#         return self.Cuts(lower_limit, lower_cut, pivot, upper_cut, upper_limit)
-
-#     def cuts_to_order(self, cuts):
-#         (lower_limit, lower_cut, pivot, upper_cut, upper_limit) = cuts
-#         # lower cut to pivot --> move right.
-#         # move left <-- pivot to upper cut.
-#         order = np.arange(self.n)
-#         a = order[lower_limit:lower_cut]
-#         b = order[pivot:upper_cut]
-#         c = order[lower_cut:pivot]
-#         d = order[upper_cut:upper_limit]
-#         new_order = a + b + c + d
-#         return new_order
-
-#     def cuts_to_sub_matrix_range(self, cuts):
-#         (lower_limit, lower_cut, pivot, upper_cut, upper_limit) = cuts
-#         sub_matrix_range = list(range(lower_cut, upper_cut))
-#         return sub_matrix_range
-
-#     def cuts_to_sub_matrix_range(self, cuts):
-#         (lower_limit, lower_cut, pivot, upper_cut, upper_limit) = cuts
-#         move_right = list(range(lower_cut, pivot))
-#         move_left = list(range(pivot, upper_cut))
-#         sub_order = move_left + move_right
-#         return sub_order
