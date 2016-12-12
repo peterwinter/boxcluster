@@ -4,13 +4,14 @@ import numpy as np
 import copy as cp
 from collections import abc
 from collections import OrderedDict
+from .mixins import FitnessEqualitiesMixin
 
 from collections import namedtuple
 
 SingleMove = namedtuple('SingleMove', ('node', 'from_mod', 'to_mod'))
 
 
-class BaseModules(abc.Iterable):
+class BaseModules(abc.Iterable, FitnessEqualitiesMixin):
     """ basic class functionality """
 
     def __init__(self):
@@ -52,24 +53,6 @@ class BaseModules(abc.Iterable):
     def insert(self, node, mod):
         self.mods[mod] = node
         self.nodes[node] = mod
-
-    def __lt__(self, other):
-        return self.fitness < other.fitness
-
-    def __le__(self, other):
-        return self.fitness <= other.fitness
-
-    def __eq__(self, other):
-        return self.fitness == other.fitness
-
-    def __ne__(self, other):
-        return self.fitness != other.fitness
-
-    def __gt__(self, other):
-        return self.fitness > other.fitness
-
-    def __ge__(self, other):
-        return self.fitness >= other.fitness
 
 
 class SimpleModules(BaseModules):
