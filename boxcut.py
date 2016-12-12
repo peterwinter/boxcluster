@@ -21,14 +21,9 @@ class BoxCut(Annealer):
         self.finishing_criterion = finishing_criterion
 
     def propose_move(self):
-        # propose move
-        # print(self.current)
         candidate = None
         while candidate is None:
             candidate = self.current.propose_move()
-        # print(candidate)
-        # propose move
-        # calculate fitness
         self.evaluate_fitness(candidate, matrix=self.matrix)
         return candidate
 

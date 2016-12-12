@@ -1,10 +1,11 @@
 from collections import abc
 from itertools import permutations
+from .mixins import FitnessEqualitiesMixin
 import random
 import numpy as np
 
 
-class BaseBoxList(abc.MutableSequence):
+class BaseBoxList(abc.MutableSequence, FitnessEqualitiesMixin):
     """ basic class functionality """
     def __init__(self, boxes=[], fitness=np.inf):
         self.boxes = boxes
@@ -31,24 +32,6 @@ class BaseBoxList(abc.MutableSequence):
 
     def insert(self, key, value):
         self.boxes.insert(key, value)
-
-    def __lt__(self, other):
-        return self.fitness < other.fitness
-
-    def __le__(self, other):
-        return self.fitness <= other.fitness
-
-    def __eq__(self, other):
-        return self.fitness == other.fitness
-
-    def __ne__(self, other):
-        return self.fitness != other.fitness
-
-    def __gt__(self, other):
-        return self.fitness > other.fitness
-
-    def __ge__(self, other):
-        return self.fitness >= other.fitness
 
     def items(self):
         boxes = self.boxes
