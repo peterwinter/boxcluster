@@ -9,7 +9,9 @@ def basemod():
     bm.fitness = 5.0
     return
 
-class TestBaseModules:
+
+# this was mainly copied from test_boxlist. not properly adjusted
+class aTestBaseModules:
     """ tests for basic properties of a BasicBoxList"""
 
     def test_getitem(self, baseboxlist):

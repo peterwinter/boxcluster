@@ -16,7 +16,6 @@ def baseboxlist(request):
     return request.param
 
 
-# @pytest.mark.usefixtures("baseboxlist")
 class TestBaseBoxListProperties:
     """ tests for basic properties of a BasicBoxList"""
 
