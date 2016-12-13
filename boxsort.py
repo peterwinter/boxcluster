@@ -73,8 +73,6 @@ class BoxSort(Annealer):
                 self.decrease_temp(fraction_moved)
                 self._moves_this_temp = 0
 
-            if i > 10000:
-                break
         return self.current
 
     def _break_condition(self):
