@@ -7,7 +7,6 @@ from . import NestedSA as MNSA
 
 limit = 25
 
-
 class ModularitySAProblem(BaseModularitySearch):
 
     def __init__(self, G, Ti=1.0, Tf=0.005, Ts=0.995, f=1, fac=0.10):
@@ -114,7 +113,6 @@ class ModularitySAProblem(BaseModularitySearch):
     def cost(self, modules):
         '''Compute the modularity measure (as in Newman)
         given a set of partitions.'''
-
         sub = self.get_subgraphs(modules)
         try:
             return modularity(sub, self.global_net, self.L)
@@ -195,7 +193,7 @@ class ModularitySAProblem(BaseModularitySearch):
         return move
 
     def get_merge_move(self, modules=None):
-        '''Select to modules at random and merge them.'''
+        '''Select two modules at random and merge them.'''
         if not modules:
             modules = self.modules
         if len(modules) == 1:

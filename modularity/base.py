@@ -2,7 +2,11 @@ import networkx as nx
 import random
 import copy
 import math
-# from collections import namedtuple
+import numpy as np
+
+from collections import namedtuple
+
+SingleMove = namedtuple('SingleMove', ('node', 'from_mod', 'to_mod'))
 
 
 def largest_connected(G):
@@ -27,23 +31,8 @@ def modularity(modules, G, L):
     return M
 
 
-# TODO
-class Modules(object):
-
-    def __init__(self, ):
-        self.items = []
-        self.modularity = 0
-
-    def sort(self):
-        ''' Sorts the node indices for each modules in self.modules in
-        descending order.
-        '''
-        for s in self.modules:
-            s.sort()
-
 
 class BaseModularityClass(object):
-    # self.single_Move = namedtuple('Move', ('node', 'from', 'to'))
 
     def graph_check(self, G):
         if G.__class__ == nx.classes.graph.Graph:
@@ -67,7 +56,6 @@ class BaseModularityClass(object):
             if s:
                 subgraphs.append(self.G.subgraph(s))
         return subgraphs
-
 
     # TODO: make moves happen as they are chosen...
     def clean_move_tuples(self, move_list):
@@ -94,24 +82,25 @@ class BaseModularityClass(object):
             moves.append({"node": t[0], "from": t[1], "to": t[2]})
         return moves
 
+
 class BaseModularitySearch(BaseModularityClass):
 
     def calc_individual_move_n(self, fac, num_nodes):
         if (fac * num_nodes**2 < 10):
             num_individual_moves = 10
         else:
-            num_individual_moves = int(math.floor(fac * num_nodes**2))
+            num_individual_moves = int(fac * num_nodes**2)
         return num_individual_moves
 
     def calc_collective_move_n(self, fac, num_nodes):
         if (self.fac * num_nodes < 2):
             n_collective_moves = 2
         else:
-            n_collective_moves = int(math.floor(self.fac * num_nodes))
+            n_collective_moves = int(self.fac * num_nodes)
         return n_collective_moves
 
     def accepted(self, move, T):
-        #check the modularity
+        # check the modularity
         H = []
         module_nodes_from = copy.deepcopy(self.modules[move["from"]])
         module_nodes_to = copy.deepcopy(self.modules[move["to"]])
@@ -135,6 +124,21 @@ class BaseModularitySearch(BaseModularityClass):
                 return False
         return False
 
+    def _probability_to_accept(self, improvement):
+        """
+        p = 1 when no difference in fitness
+        p > 1 when improvement (ie. always accept)
+        p gets small very quickly with negative improvement
+        """
+        return np.exp(improvement / self.box_temperature)
+
+    def accept_move(self, cur_fit, new_fit):
+        if new_fit < cur_fit:
+            return True
+        else:
+            improvement = (cur_fit - new_fit) / cur_fit
+            p = self._probability_to_accept(improvement)
+            return np.random.random() < p
 
     def get_single_node_move(self):
         '''Select two nodes at random to swap.'''
@@ -148,9 +152,10 @@ class BaseModularitySearch(BaseModularityClass):
         list_of_module_indices.remove(currently_in)
         # choose a random partition to move to
         new_partition = random.choice(list_of_module_indices)
-        move = {"node": node_to_move,
-                "from": currently_in,
-                "to": new_partition}
+        # move = dict("node": node_to_move,
+        #             "from": currently_in,
+        #             "to": new_partition)
+        move = SingleMove(node_to_move, currently_in, new_partition)
         return move
 
 
